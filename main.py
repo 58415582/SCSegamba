@@ -31,6 +31,17 @@ def get_args_parser():
                         help='Weight ratio for Binary Cross Entropy Loss (0.0-1.0), should sum to 1 with DiceLoss_ratio')
     parser.add_argument('--DiceLoss_ratio', default=0.17, type=float,
                         help='Weight ratio for Dice Loss (0.0-1.0), should sum to 1 with BCELoss_ratio')
+    parser.add_argument(
+        '--use_bdem',
+        action='store_true',
+        help='Enable Boundary Detail Enhancement Module'
+    )
+
+    parser.add_argument(
+        '--use_hnsm',
+        action='store_true',
+        help='Enable Hard-Negative Suppression Module'
+    )
     parser.add_argument('--Norm_Type', default='GN', type=str,
                         help='Normalization layer type [GN|BN], GN=GroupNorm')
     parser.add_argument('--dataset_path', default="../data/TUT",
@@ -90,12 +101,17 @@ def main(args):
     log_test = get_logger(process_folder_path, 'test')
     log_eval = get_logger(process_folder_path, 'eval')
 
-    log_train.info("args -> " + str(args))
-    log_train.info("args: dataset -> " + str(args.dataset_path))
-    log_train.info("args: BCELoss_ratio -> " + str(args.BCELoss_ratio))
-    log_train.info("args: DiceLoss_ratio -> " + str(args.DiceLoss_ratio))
-    print("args: BCELoss_ratio -> " + str(args.BCELoss_ratio))
-    print("args: DiceLoss_ratio -> " + str(args.DiceLoss_ratio))
+    log_train.info("args -> " + str(args)) 
+    log_train.info("args: dataset -> " + str(args.dataset_path)) 
+    log_train.info("args: BCELoss_ratio -> " + str(args.BCELoss_ratio)) 
+    log_train.info("args: DiceLoss_ratio -> " + str(args.DiceLoss_ratio)) 
+    log_train.info("args: use_bdem -> " + str(args.use_bdem))
+    log_train.info("args: use_hnsm -> " + str(args.use_hnsm))
+
+    print("args: BCELoss_ratio -> " + str(args.BCELoss_ratio)) 
+    print("args: DiceLoss_ratio -> " + str(args.DiceLoss_ratio)) 
+    print("args: use_bdem -> " + str(args.use_bdem))
+    print("args: use_hnsm -> " + str(args.use_hnsm))
 
     device = torch.device(args.device)
     seed = args.seed + utils.get_rank()
