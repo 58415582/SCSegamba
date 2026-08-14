@@ -22,6 +22,3 @@ BDEM_HNSM_changes.patch
 results/results_test/checkpoint_TUT/
 results/results_test/checkpoint_repro/
 results/results_test/TUT_results_official/
-
-# Timestamped training results
-results/*_Dataset->TUT/
