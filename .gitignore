@@ -1,0 +1,27 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
+
+# Checkpoints
+checkpoints/
+
+# Training logs
+train_*.log
+
+# Local reproduction environment
+SCSegamba_repro.yml
+requirements_repro.txt
+
+# Local patch backup
+BDEM_HNSM_changes.patch
+
+# Local evaluation outputs
+results/results_test/checkpoint_TUT/
+results/results_test/checkpoint_repro/
+results/results_test/TUT_results_official/
+
+# Timestamped training results
+results/*_Dataset->TUT/
