@@ -43,33 +43,33 @@ class MFS(nn.Module):
         if self.use_hnsm:
             self.HNSM = HNSM(embedding_dim)
 
-        if self.use_bdem and self.use_hnsm:
-            self.dual_fuse = nn.Sequential(
-                nn.Conv2d(
-                    embedding_dim * 2,
-                    embedding_dim,
-                    kernel_size=1,
-                    bias=False
-                ),
-                nn.GroupNorm(1, embedding_dim),
-                nn.GELU(),
+        # if self.use_bdem and self.use_hnsm:
+        #     self.dual_fuse = nn.Sequential(
+        #         nn.Conv2d(
+        #             embedding_dim * 2,
+        #             embedding_dim,
+        #             kernel_size=1,
+        #             bias=False
+        #         ),
+        #         nn.GroupNorm(1, embedding_dim),
+        #         nn.GELU(),
 
-                nn.Conv2d(
-                    embedding_dim,
-                    embedding_dim,
-                    kernel_size=3,
-                    padding=1,
-                    groups=embedding_dim,
-                    bias=False
-                ),
+        #         nn.Conv2d(
+        #             embedding_dim,
+        #             embedding_dim,
+        #             kernel_size=3,
+        #             padding=1,
+        #             groups=embedding_dim,
+        #             bias=False
+        #         ),
 
-                nn.Conv2d(
-                    embedding_dim,
-                    embedding_dim,
-                    kernel_size=1,
-                    bias=False
-                )
-            )
+        #         nn.Conv2d(
+        #             embedding_dim,
+        #             embedding_dim,
+        #             kernel_size=1,
+        #             bias=False
+        #         )
+        #     )
 
         self.linear_pred = BottConv(embedding_dim, 1, 1, kernel_size=1)
         self.linear_pred_1 = nn.Conv2d(1, 1, kernel_size=1)
@@ -108,7 +108,7 @@ class MFS(nn.Module):
         out_c = self.dropout(out_c)
 
         # --------------------------------
-        # Parallel dual-module enhancement
+        # Serial dual-module enhancement: BDEM -> HNSM
         # --------------------------------
 
         # Branch 1: crack boundary/detail enhancement
@@ -117,25 +117,13 @@ class MFS(nn.Module):
         # --------------------------------
 
         if self.use_bdem and self.use_hnsm:
-
-            feat_bdem = self.BDEM(out_c)
-            feat_hnsm = self.HNSM(out_c)
-
-            feat_dual = torch.cat(
-                [feat_bdem, feat_hnsm],
-                dim=1
-            )
-
-            feat_dual = self.dual_fuse(feat_dual)
-
-            out_c = out_c + feat_dual
+            out_c = self.BDEM(out_c)
+            out_c = self.HNSM(out_c)
 
         elif self.use_bdem:
-
             out_c = self.BDEM(out_c)
 
         elif self.use_hnsm:
-
             out_c = self.HNSM(out_c)
 
         # If both are False:
