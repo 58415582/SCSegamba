@@ -70,6 +70,11 @@ def get_args_parser():
                         help='Directory to save model checkpoints')
     parser.add_argument('--device', default='cuda',
                         help='Computation device [cuda|cpu] for training/inference')
+    parser.add_argument(
+        '--amp',
+        action='store_true',
+        help='Enable CUDA automatic mixed precision during training'
+    )
     parser.add_argument('--seed', default=42, type=int,
                         help='Random seed')
     parser.add_argument('--dataset_mode', type=str, default='crack',
@@ -107,13 +112,20 @@ def main(args):
     log_train.info("args: DiceLoss_ratio -> " + str(args.DiceLoss_ratio)) 
     log_train.info("args: use_bdem -> " + str(args.use_bdem))
     log_train.info("args: use_hnsm -> " + str(args.use_hnsm))
+    log_train.info("args: amp -> " + str(args.amp))
 
     print("args: BCELoss_ratio -> " + str(args.BCELoss_ratio)) 
     print("args: DiceLoss_ratio -> " + str(args.DiceLoss_ratio)) 
     print("args: use_bdem -> " + str(args.use_bdem))
     print("args: use_hnsm -> " + str(args.use_hnsm))
+    print("args: amp -> " + str(args.amp))
 
     device = torch.device(args.device)
+
+    amp_enabled = bool(args.amp)
+
+    if amp_enabled and device.type != 'cuda':
+        raise ValueError("--amp requires a CUDA device")
     seed = args.seed + utils.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
@@ -142,6 +154,10 @@ def main(args):
         print('use AdamW!')
         optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                       weight_decay=args.weight_decay)
+    scaler = torch.cuda.amp.GradScaler(enabled=amp_enabled)
+
+    print("AMP enabled ->", amp_enabled)
+    log_train.info("AMP enabled -> " + str(amp_enabled))
 
     if args.lr_scheduler == 'StepLR':
         lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, args.lr_drop)
@@ -164,7 +180,7 @@ def main(args):
     for epoch in range(args.start_epoch, args.epochs):
         print("---------------------------------------------------------------------------------------")
         print("training epoch start -> ", epoch)
-        train_one_epoch(model, criterion, train_dataLoader, optimizer, epoch, args, log_train)
+        train_one_epoch(model, criterion, train_dataLoader, optimizer, epoch, args, log_train, scaler=scaler)
         lr_scheduler.step()
         if args.output_dir:
             checkpoint_paths = [output_dir / 'checkpoint.pth']
@@ -175,6 +191,7 @@ def main(args):
                     'model': model.state_dict(),
                     'optimizer': optimizer.state_dict(),
                     'lr_scheduler': lr_scheduler.state_dict(),
+                    'scaler': scaler.state_dict(),
                     'epoch': epoch,
                     'args': args,
                 }, checkpoint_path)
@@ -196,12 +213,24 @@ def main(args):
             for batch_idx, (data) in enumerate(test_dl):
                 x = data["image"]
                 target = data["label"]
-                if device != 'cpu':
-                    x, target = x.cuda(), target.to(dtype=torch.int64).cuda()
+                if device.type == 'cuda':
+                    x = x.cuda()
+                    target = target.to(dtype=torch.int64).cuda()
+
                 out = model(x)
-                loss = criterion(out, target.float())
+                loss = criterion(out.float(), target.float())
+                out = model(x)
+
+                if not torch.isfinite(out).all():
+                    print(
+                        f"[WARNING] Non-finite model output detected "
+                        f"at epoch={epoch}, batch={batch_idx}"
+                    )
+
+                loss = criterion(out.float(), target.float())
+
                 target = target[0, 0, ...].cpu().numpy()
-                out = out[0, 0, ...].cpu().numpy()
+                out = out[0, 0, ...].float().cpu().numpy()
                 root_name = data["A_paths"][0].split("/")[-1][0:-4]
 
                 target = 255 * (target / np.max(target))
@@ -239,6 +268,7 @@ def main(args):
                     'model': model.state_dict(),
                     'optimizer': optimizer.state_dict(),
                     'lr_scheduler': lr_scheduler.state_dict(),
+                    'scaler': scaler.state_dict(),
                     'epoch': epoch,
                     'args': args,
                 }, checkpoint_path)
